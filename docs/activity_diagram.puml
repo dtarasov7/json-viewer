@@ -1,0 +1,67 @@
+@startuml json_tui_viewer_activity
+!theme plain
+skinparam backgroundColor white
+
+title Диаграмма активности: Обработка клавиши PgDn
+
+start
+
+:Пользователь нажимает PgDn;
+
+:Получить текущий узел под курсором;
+:Найти корневой объект (depth=0);
+
+if (Есть следующий объект?) then (да)
+  :Получить относительный путь
+к текущему узлу;
+  note right
+    get_relative_path_with_state()
+    Возвращает: [(key, depth, expanded), ...]
+  end note
+
+  :next_obj_idx = current_obj_idx + 1;
+
+  if (Объект загружен?) then (нет)
+    :Загрузить объект из файла;
+    :json_file[next_obj_idx];
+    :Добавить в cache;
+    :Создать JsonNode;
+    :Добавить в дерево;
+  endif
+
+  :Попытка навигации по пути
+в новом объекте;
+  :navigate_by_path_with_state();
+
+  note right
+    Разворачивает узлы по пути,
+    восстанавливает состояние expanded
+  end note
+
+  if (Путь найден?) then (да)
+    :Позиционировать курсор
+на найденный узел;
+  else (нет)
+    :Позиционировать курсор
+на корень объекта;
+  endif
+
+  :Пересчитать список видимых узлов;
+  :build_visible_list(filter_fields);
+
+  if (Применен фильтр?) then (да)
+    :Фильтровать узлы по именам полей;
+    :should_show_node() для каждого узла;
+  endif
+
+  :Перерисовать экран;
+  :draw(visible_nodes);
+
+else (нет)
+  :Вывести сообщение
+"Это последний объект";
+endif
+
+stop
+
+@enduml

@@ -1,0 +1,67 @@
+@startuml json_tui_viewer_deployment
+!theme plain
+skinparam backgroundColor white
+
+title Диаграмма развертывания
+
+node "Терминал" as terminal {
+  artifact "python3" as Python
+
+  component "json_tui_viewer.py" as App {
+    component [Main Loop]
+    component [Event Handler]
+    component [Renderer]
+  }
+
+  component "curses library" as Curses {
+    component [Screen Management] as Screen
+    component [Keyboard Input] as Keyboard
+  }
+
+  Python --> App : запускает
+  App --> Curses : использует
+}
+
+node "Файловая система" as FileSystem {
+  
+  database "data.jsonl" as DataFile
+  storage "LRU Cache" as Cache
+  storage "File Index" as Index
+  DataFile -[hidden]-> Cache
+  Cache -[hidden]-> Index
+}
+
+terminal -L[hidden]-> Index
+
+App --> DataFile : читает
+App --> Cache : кэширует
+App --> Index : индексирует
+
+note right of DataFile
+  Формат: JSON или JSONL
+  Размер: до миллионов объектов
+  Доступ: sequential read
+end note
+
+note right of Cache
+  LRU кэш в RAM
+  Eviction: FIFO при переполнении
+  Потребление: ~6 МБ (200 × 30 КБ)
+end note
+
+note right of Index
+  Индекс в RAM
+  Для 1M объектов: ~8 МБ
+  Строится при запуске
+end note
+
+actor User
+interface "Keyboard" as KB
+interface "Display" as Display
+
+User -L-> KB
+KB -U-> Keyboard : клавиши
+Screen -D-> Display : отрисовка
+Display -L-> User : визуализация
+
+@enduml

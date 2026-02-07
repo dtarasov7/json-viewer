@@ -1,0 +1,103 @@
+@startuml json_tui_viewer_classes
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+
+title Диаграмма классов - JSON TUI Viewer
+
+class JsonNode {
+  - key: str
+  - value: any
+  - parent: JsonNode
+  - depth: int
+  - index: int
+  - expanded: bool
+  - children: List[JsonNode]
+  --
+  + is_leaf(): bool
+  + build_children(): void
+  + toggle(): void
+  + get_root_object(): JsonNode
+  + get_relative_path_with_state(): List[Tuple]
+  + expand_all(): void
+  + collapse_all(): void
+  + collect_leaf_fields(): Set[str]
+}
+
+class LazyJsonFile {
+  - filepath: str
+  - _offsets: List[int]
+  - _count: int
+  - _cache: Dict[int, dict]
+  - _cache_size: int
+  - _is_single: bool
+  --
+  - _build_index(): void
+  + __len__(): int
+  + __getitem__(index: int): dict
+  + search_by_field(field_name, pattern, max): List
+  + search_all_fields(pattern, max): Tuple[List, Set]
+}
+
+class "Main Application" as Main {
+  + root: JsonNode
+  + loaded_objects: Set[int]
+  + cursor_idx: int
+  + top_idx: int
+  + filter_fields: Set[str]
+  + search_results: List[JsonNode]
+  --
+  + main(stdscr, json_file, filename): void
+  + draw(...): int
+  + load_object_into_tree(...): JsonNode
+  + ensure_next_objects_loaded(...): void
+}
+
+package "UI Functions" {
+  class ViewFunctions {
+    + format_node_line(...): str
+    + show_full_value_viewer(...): void
+    + show_field_selector(...): Set[str]
+    + input_string(...): str
+  }
+
+  class NavigationFunctions {
+    + navigate_by_path_with_state(...): JsonNode
+    + expand_path_to_node(...): void
+    + find_node_by_path(...): JsonNode
+  }
+
+  class FilterFunctions {
+    + should_show_node(...): bool
+    + build_visible_list(...): List[JsonNode]
+  }
+}
+
+LazyJsonFile "1" -- "1..*" "dict" : загружает >
+JsonNode "1" o-- "0..*" JsonNode : parent/children
+Main "1" --> "1" LazyJsonFile : использует >
+Main "1" --> "1" JsonNode : корневой узел >
+Main ..> ViewFunctions : использует >
+Main ..> NavigationFunctions : использует >
+Main ..> FilterFunctions : использует >
+
+note right of JsonNode
+  Узел дерева JSON структуры.
+  Поддерживает ленивое создание
+  дочерних узлов.
+end note
+
+note right of LazyJsonFile
+  Ленивая загрузка объектов
+  с LRU-кэшированием.
+  Индексирует позиции без
+  загрузки содержимого.
+end note
+
+note bottom of Main
+  Главный контроллер приложения.
+  Управляет состоянием и
+  обрабатывает пользовательский ввод.
+end note
+
+@enduml

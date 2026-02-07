@@ -1,0 +1,74 @@
+@startuml json_tui_viewer_components
+!theme plain
+skinparam backgroundColor white
+
+title Диаграмма компонентов - JSON TUI Viewer
+
+[JSON/JSONL File] as File
+
+package "Data Layer" {
+  [LazyJsonFile] as Loader
+  database "LRU Cache" as Cache
+  [File Index] as Index
+}
+
+package "Domain Layer" {
+  [JsonNode Tree] as Tree
+  [Path Navigator] as PathNav
+}
+
+package "Presentation Layer" {
+  [Main Event Loop] as EventLoop
+  [Screen Renderer] as Renderer
+  [Field Filter] as Filter
+  [Search Engine] as Search
+}
+
+package "UI Components" {
+  [Value Viewer] as Viewer
+  [Field Selector] as Selector
+  [Input Dialog] as Input
+}
+
+interface "curses" as Curses
+
+File --> Loader : читает
+Loader --> Cache : кэширует
+Loader --> Index : индексирует
+Loader --> Tree : создает узлы
+Tree --> PathNav : навигация
+EventLoop --> Tree : управляет
+EventLoop --> Renderer : отрисовка
+EventLoop --> Filter : фильтрация
+EventLoop --> Search : поиск
+Renderer --> Curses : вывод
+Viewer --> Curses : вывод
+Selector --> Curses : вывод
+Input --> Curses : ввод
+EventLoop ..> Viewer : использует
+EventLoop ..> Selector : использует
+EventLoop ..> Input : использует
+Search --> Loader : запросы
+Filter --> Tree : обход
+
+note right of Loader
+  Загружает объекты по индексу.
+  Поддерживает до 200 объектов в кэше.
+  Память: ~8 байт на объект (индекс).
+end note
+
+note right of Tree
+  Дерево создается лениво.
+  Узлы разворачиваются
+  только при обращении.
+end note
+
+note bottom of EventLoop
+  Обрабатывает клавиши:
+  - Навигация (↑↓←→)
+  - Поиск (s, F)
+  - Фильтрация (f)
+  - Expand/Collapse (a, z, A, Z)
+end note
+
+@enduml

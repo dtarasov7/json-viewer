@@ -1,0 +1,76 @@
+@startuml json_tui_viewer_sequence
+!theme plain
+skinparam backgroundColor white
+
+title Последовательность: Загрузка и навигация
+
+actor User
+participant "Main" as Main
+participant "LazyJsonFile" as Loader
+participant "JsonNode" as Node
+participant "Renderer" as Render
+database "File" as File
+
+== Инициализация ==
+User -> Main : запуск программы
+Main -> Loader : __init__(filepath)
+Loader -> File : открыть файл
+Loader -> Loader : _build_index()
+note right
+  Сканирует файл,
+  запоминает позиции
+  всех объектов
+end note
+Loader --> Main : готов (N объектов)
+
+Main -> Main : предзагрузка 20 объектов
+loop для каждого объекта
+  Main -> Loader : __getitem__(i)
+  Loader -> File : seek(offset)
+  Loader -> File : readline()
+  File --> Loader : JSON строка
+  Loader -> Loader : json.loads()
+  Loader -> Loader : добавить в cache
+  Loader --> Main : dict
+  Main -> Node : new JsonNode(data)
+  Node --> Main : узел создан
+end
+
+== Навигация ==
+User -> Main : нажатие ↓
+Main -> Main : cursor_idx++
+Main -> Main : build_visible_list()
+Main -> Node : обход дерева
+Node --> Main : список видимых узлов
+Main -> Render : draw(visible_nodes)
+Render --> User : обновление экрана
+
+== Разворачивание узла ==
+User -> Main : нажатие →
+Main -> Node : toggle()
+Node -> Node : build_children()
+note right
+  Ленивое создание
+  дочерних узлов
+end note
+Node --> Main : развернут
+Main -> Main : build_visible_list()
+Main -> Render : draw(visible_nodes)
+Render --> User : обновление экрана
+
+== Ленивая загрузка при скроллинге ==
+User -> Main : скроллинг вниз
+Main -> Main : cursor близко к концу?
+alt нужна загрузка
+  Main -> Main : ensure_next_objects_loaded()
+  loop 5 объектов
+    Main -> Loader : __getitem__(next_idx)
+    Loader -> File : seek + readline
+    Loader --> Main : dict
+    Main -> Node : new JsonNode(data)
+  end
+end
+Main -> Render : draw(visible_nodes)
+Render --> User : обновление экрана
+
+@enduml

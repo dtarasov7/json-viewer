@@ -1,0 +1,83 @@
+@startuml json_tui_viewer_search
+!theme plain
+skinparam backgroundColor white
+
+title Последовательность: Глобальный поиск (F)
+
+actor User
+participant "Main" as Main
+participant "LazyJsonFile" as Loader
+participant "JsonNode" as Node
+participant "Renderer" as Render
+database "File" as File
+
+User -> Main : нажатие F
+Main -> Main : input_string("поиск")
+Main <-- Main : pattern = "192.168"
+
+Main -> Render : "Поиск по всем полям..."
+Render --> User : статус
+
+Main -> Loader : search_all_fields(pattern, 1000)
+note right
+  Поиск по ВСЕМ
+  листовым полям
+  во всех объектах
+end note
+
+loop для каждого объекта
+  Loader -> Loader : __getitem__(i)
+  alt объект в cache
+    Loader -> Loader : взять из cache
+  else объект не в cache
+    Loader -> File : seek + readline
+    File --> Loader : JSON строка
+    Loader -> Loader : json.loads()
+    Loader -> Loader : cache[i] = obj
+  end
+
+  Loader -> Loader : search_recursive(obj)
+  note right
+    Рекурсивный обход
+    всех листовых значений
+  end note
+
+  alt значение совпадает
+    Loader -> Loader : matches.append(...)
+    Loader -> Loader : matched_fields.add(field_name)
+  end
+end
+
+Loader --> Main : (matches, matched_fields)
+
+Main -> Main : filter_fields = matched_fields
+note right
+  Автоматическая фильтрация
+  на поля с результатами
+end note
+
+loop для каждого результата
+  Main -> Loader : load_object_into_tree(obj_idx)
+  Main -> Node : find_node_by_path(path)
+  Node --> Main : target_node
+  Main -> Main : search_results.append(node)
+end
+
+Main -> Node : expand_path_to_node(first_result)
+Main -> Main : build_visible_list(filter_fields)
+note right
+  Видимы только
+  отфильтрованные поля
+end note
+
+Main -> Render : draw(visible_nodes)
+Render --> User : "Найдено 15, фильтр: 3 полей"
+
+User -> Main : нажатие n
+Main -> Main : search_idx++
+Main -> Node : expand_path_to_node(next_result)
+Main -> Main : build_visible_list()
+Main -> Render : draw(visible_nodes)
+Render --> User : переход к след. результату
+
+@enduml

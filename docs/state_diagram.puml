@@ -1,0 +1,65 @@
+@startuml json_tui_viewer_states
+!theme plain
+skinparam backgroundColor white
+
+title Диаграмма состояний - Узел JsonNode
+
+[*] --> Created : new JsonNode()
+
+state Created {
+  [*] --> Collapsed
+  Collapsed : expanded = False
+  Collapsed : children = None
+}
+
+Created --> Collapsed
+
+state "Операции с узлом" as Operations {
+  Collapsed --> Expanding : toggle() / is_leaf() == False
+  Expanding --> Expanded : build_children()
+  Expanded --> Collapsed : toggle()
+
+  Expanded : expanded = True
+  Expanded : children = List[JsonNode]
+
+  state Expanded {
+    [*] --> Visible
+    Visible --> Hidden : filter applied
+    Hidden --> Visible : filter removed
+  }
+
+  Expanding : создание дочерних узлов
+
+  note right of Expanded
+    Дочерние узлы видны
+    в списке visible_nodes
+  end note
+}
+
+Operations --> ExpandingAll : expand_all()
+ExpandingAll --> AllExpanded : рекурсивно для всех детей
+
+AllExpanded --> Collapsed : collapse_all()
+
+note top of Operations
+  Листовые узлы (is_leaf() == True)
+  не имеют состояний Expanded/Collapsed
+end note
+
+state "Специальные операции" as Special {
+  state "В результатах поиска" as InSearch
+  state "Отфильтрован" as Filtered
+  state "Под курсором" as Focused
+}
+
+Operations --> Special : контекстные состояния
+
+note right of Special
+  Эти состояния не хранятся в узле,
+  а определяются контекстом:
+  - search_results
+  - filter_fields
+  - cursor_idx
+end note
+
+@enduml
