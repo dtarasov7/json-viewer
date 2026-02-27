@@ -2,6 +2,9 @@
 
 <img width="1046" height="1324" alt="image" src="https://github.com/user-attachments/assets/75b13f5a-72e5-48ae-8178-0ba2d168a17d" />
 
+Текущая версия: `v1.1.0`  
+История изменений: [CHANGELOG.md](CHANGELOG.md)
+
 # Возможности:
 - Ленивая загрузка больших файлов (миллионы объектов)
 - Древовидная навигация с разворачиванием/сворачиванием узлов
@@ -33,5 +36,3 @@
 - Ограничение expand_all (100K узлов)
 - Валидация JSON структуры при загрузке
 
-## Attribution
-Parts of this code were generated with assistance 

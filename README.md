@@ -3,10 +3,14 @@
 [![Python](https://img.shields.io/badge/Python-3.7%2B-blue?logo=python)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-Hardened-red)](#security-features)
+[![Version](https://img.shields.io/badge/Version-v1.1.0-brightgreen)](CHANGELOG.md)
 
 <img width="1046" height="1324" alt="image" src="https://github.com/user-attachments/assets/75b13f5a-72e5-48ae-8178-0ba2d168a17d" />
 
 A blazing-fast, secure terminal-based JSON/JSONL viewer with lazy loading, regex search, field filtering, and **built-in protection against JSON bombs and ReDoS attacks**. Perfect for exploring massive JSON datasets (millions of records) directly in your terminal.
+
+Current version: `v1.1.0`  
+Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## ✨ Key Features
 
@@ -147,30 +151,6 @@ REGEX_TIMEOUT = 2                   # Seconds for regex operations
 ## 📜 License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
-```
-MIT License
-
-Copyright (c) 2026 Tarasov Dmitry
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 
 ## 🙏 Acknowledgements
 

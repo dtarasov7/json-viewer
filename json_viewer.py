@@ -41,10 +41,16 @@ import os
 import curses
 import re
 import signal
+import ssl
+import base64
+import binascii
+import subprocess
+import tempfile
+import textwrap
 from typing import List, Optional, Tuple, Set, Any
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Tarasov Dmitry"
 
 # ===== SECURITY CONFIGURATION =====
@@ -266,7 +272,7 @@ class JsonNode:
         self.children = []
 
         if isinstance(self.value, dict):
-            for k in sorted(self.value.keys()):
+            for k in self.value.keys():
                 self.children.append(
                     JsonNode(str(k), self.value[k], self, self.depth + 1)
                 )
@@ -637,29 +643,193 @@ def format_node_line(node: 'JsonNode', width: int, total_objects: int) -> str:
 
 
 def show_full_value_viewer(stdscr, node: 'JsonNode'):
-    """Полноэкранный просмотрщик значения узла с прокруткой."""
+    """Fullscreen value viewer with scrolling and decode helpers."""
+    def build_base64_view(value: Any) -> str:
+        if not isinstance(value, str):
+            return "Base64 decode is available only for string values."
+
+        raw = value.strip()
+        if not raw:
+            return "String is empty."
+
+        normalized = ''.join(raw.split())
+        decoded = None
+        errors = []
+
+        for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+            try:
+                padded = normalized + "=" * ((4 - len(normalized) % 4) % 4)
+                if decoder is base64.b64decode:
+                    decoded = decoder(padded, validate=True)
+                else:
+                    decoded = decoder(padded)
+                break
+            except (binascii.Error, ValueError) as exc:
+                errors.append(str(exc))
+
+        if decoded is None:
+            return f"Cannot decode as base64: {'; '.join(errors)}"
+
+        try:
+            decoded_text = decoded.decode('utf-8')
+            stripped = decoded_text.strip()
+            if stripped:
+                try:
+                    json_obj = json.loads(stripped)
+                    return json.dumps(json_obj, ensure_ascii=False, indent=2)
+                except json.JSONDecodeError:
+                    pass
+            return decoded_text
+        except UnicodeDecodeError:
+            preview = decoded[:256].hex()
+            extra = "" if len(decoded) <= 256 else "..."
+            return (
+                f"Decoded binary payload ({len(decoded)} bytes), not UTF-8 text.\n"
+                f"HEX preview: {preview}{extra}"
+            )
+
+    def extract_certificate_bytes(value: Any):
+        if not isinstance(value, str):
+            return None, None, "Certificate parsing is available only for string values."
+
+        raw = value.strip()
+        if not raw:
+            return None, None, "String is empty."
+
+        if "-----BEGIN CERTIFICATE-----" in raw and "-----END CERTIFICATE-----" in raw:
+            return raw.encode('utf-8'), "PEM", None
+
+        normalized = ''.join(raw.split())
+        padded = normalized + "=" * ((4 - len(normalized) % 4) % 4)
+        try:
+            decoded_bytes = base64.b64decode(padded, validate=True)
+
+            # Some payloads are base64(PemText), not base64(DER).
+            try:
+                decoded_text = decoded_bytes.decode('utf-8').lstrip('\ufeff').strip()
+                if (
+                    "-----BEGIN CERTIFICATE-----" in decoded_text
+                    and "-----END CERTIFICATE-----" in decoded_text
+                ):
+                    return decoded_text.encode('utf-8'), "PEM", None
+            except UnicodeDecodeError:
+                pass
+
+            return decoded_bytes, "DER", None
+        except (binascii.Error, ValueError):
+            return None, None, "Value is not a PEM certificate and not a valid base64 DER certificate."
+
+    def format_decoded_cert_dict(cert_dict: dict) -> str:
+        parts = [
+            "Certificate:",
+            "    Data:",
+        ]
+        serial = cert_dict.get('serialNumber', 'N/A')
+        parts.append(f"        Serial Number: {serial}")
+        parts.append(f"        Not Before: {cert_dict.get('notBefore', 'N/A')}")
+        parts.append(f"        Not After : {cert_dict.get('notAfter', 'N/A')}")
+
+        issuer = cert_dict.get('issuer')
+        if issuer:
+            issuer_text = ", ".join(f"{name}={val}" for rdn in issuer for name, val in rdn)
+            parts.append(f"        Issuer: {issuer_text}")
+
+        subject = cert_dict.get('subject')
+        if subject:
+            subject_text = ", ".join(f"{name}={val}" for rdn in subject for name, val in rdn)
+            parts.append(f"        Subject: {subject_text}")
+
+        san = cert_dict.get('subjectAltName')
+        if san:
+            san_text = ", ".join(f"{name}:{val}" for name, val in san)
+            parts.append("        X509v3 Subject Alternative Name:")
+            parts.append(f"            {san_text}")
+
+        parts.append("")
+        parts.append("Note: openssl is not available, output is generated via Python ssl decoder.")
+        return "\n".join(parts)
+
+    def build_certificate_view(value: Any) -> str:
+        cert_bytes, cert_format, err = extract_certificate_bytes(value)
+        if err:
+            return err
+
+        suffix = ".pem" if cert_format == "PEM" else ".der"
+        with tempfile.NamedTemporaryFile(mode='wb', suffix=suffix, delete=False) as tmp:
+            tmp.write(cert_bytes)
+            cert_path = tmp.name
+
+        try:
+            try:
+                result = subprocess.run(
+                    [
+                        "openssl", "x509",
+                        "-in", cert_path,
+                        "-inform", cert_format,
+                        "-nameopt", "utf8",
+                        "-text", "-noout",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout
+                openssl_error = result.stderr.strip() or "unknown openssl error"
+            except (FileNotFoundError, subprocess.SubprocessError) as exc:
+                openssl_error = str(exc)
+
+            if cert_format == "DER":
+                b64 = base64.b64encode(cert_bytes).decode('ascii')
+                pem_text = (
+                    "-----BEGIN CERTIFICATE-----\n"
+                    + "\n".join(textwrap.wrap(b64, 64))
+                    + "\n-----END CERTIFICATE-----\n"
+                )
+                with open(cert_path, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(pem_text)
+
+            cert_info = ssl._ssl._test_decode_cert(cert_path)
+            return format_decoded_cert_dict(cert_info) + f"\n\nOpenSSL details: {openssl_error}"
+        except Exception as exc:
+            return f"Cannot parse certificate: {exc}"
+        finally:
+            try:
+                os.unlink(cert_path)
+            except OSError:
+                pass
+
+    views = [("raw", str(node.value))]
+    if isinstance(node.value, str):
+        views.append(("base64", build_base64_view(node.value)))
+        views.append(("certificate", build_certificate_view(node.value)))
+
     h, w = stdscr.getmaxyx()
 
     win = curses.newwin(h, w, 0, 0)
     win.keypad(True)
 
-    full_value = str(node.value)
-    lines = full_value.split('\n')
-
+    current_view_idx = 0
     scroll_y = 0
     scroll_x = 0
 
     while True:
+        view_name, full_value = views[current_view_idx]
+        lines = full_value.split('\n')
+
         win.clear()
         win.box()
 
-        title = f" Поле: {node.key} (↑↓←→:прокрутка, q/Esc:выход) "
-        win.addnstr(0, (w - len(title)) // 2, title[:w-2], w-2, curses.A_BOLD)
+        title = f" Field: {node.key} | View: {view_name} (1:raw 2:base64 3:cert Tab:next q/Esc:exit) "
+        win.addnstr(0, (w - len(title)) // 2, title[:w - 2], w - 2, curses.A_BOLD)
 
         val_type = type(node.value).__name__
         val_len = len(full_value)
-        info = f" Тип: {val_type} | Длина: {val_len} символов "
-        win.addnstr(1, 2, info[:w-4], w-4)
+        info = f" Type: {val_type} | Length: {val_len} chars "
+        win.addnstr(1, 2, info[:w - 4], w - 4)
 
         text_h = h - 4
         text_w = w - 4
@@ -677,8 +847,8 @@ def show_full_value_viewer(stdscr, node: 'JsonNode'):
                 visible_part = line[scroll_x:scroll_x + text_w]
                 win.addnstr(i + 2, 2, visible_part, text_w)
 
-        status = f"Строка {scroll_y+1}/{len(lines)} | Столбец {scroll_x+1}"
-        win.addnstr(h-1, 2, status[:w-4], w-4)
+        status = f"Line {scroll_y + 1}/{len(lines)} | Column {scroll_x + 1}"
+        win.addnstr(h - 1, 2, status[:w - 4], w - 4)
 
         win.refresh()
 
@@ -686,6 +856,22 @@ def show_full_value_viewer(stdscr, node: 'JsonNode'):
 
         if ch in (ord('q'), ord('Q'), 27):
             break
+        elif ch == ord('1'):
+            current_view_idx = 0
+            scroll_y = 0
+            scroll_x = 0
+        elif ch == ord('2') and len(views) > 1:
+            current_view_idx = 1
+            scroll_y = 0
+            scroll_x = 0
+        elif ch == ord('3') and len(views) > 2:
+            current_view_idx = 2
+            scroll_y = 0
+            scroll_x = 0
+        elif ch == 9:
+            current_view_idx = (current_view_idx + 1) % len(views)
+            scroll_y = 0
+            scroll_x = 0
         elif ch == curses.KEY_UP:
             scroll_y = max(0, scroll_y - 1)
         elif ch == curses.KEY_DOWN:
@@ -703,7 +889,6 @@ def show_full_value_viewer(stdscr, node: 'JsonNode'):
             scroll_x = 0
         elif ch == curses.KEY_END:
             scroll_y = max(0, len(lines) - text_h)
-
 
 def show_field_selector(stdscr, available_fields: List[str], preselected: Set[str] = None) -> Optional[Set[str]]:
     """Диалог выбора полей для фильтрации."""
