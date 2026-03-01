@@ -1,4 +1,4 @@
-@startuml json_tui_viewer_classes
+@startuml json_viewer_classes
 !theme plain
 skinparam classAttributeIconSize 0
 skinparam backgroundColor white

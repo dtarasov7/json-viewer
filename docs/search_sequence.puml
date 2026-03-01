@@ -1,4 +1,4 @@
-@startuml json_tui_viewer_search
+@startuml json_viewer_search
 !theme plain
 skinparam backgroundColor white
 

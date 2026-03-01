@@ -34,6 +34,13 @@ Changelog: [CHANGELOG.md](CHANGELOG.md)
 - Jump to object by index (`g`)
 - Preserve cursor position when switching objects (`PgUp`/`PgDn`)
 
+### 🧩 Value Decode Inspector
+- Full-value viewer includes multiple modes for string fields:
+- `raw`: original value.
+- `base64`: decode text and pretty-print if decoded content is valid JSON.
+- `certificate`: parse X.509 certificates from PEM, base64 DER, or base64 PEM payloads.
+- OpenSSL-compatible certificate text output (`x509 -text`) with UTF-8 support and Python fallback when OpenSSL is unavailable.
+
 ### 📦 Format Support
 - **Standard JSON**: Single-object files
 - **JSONL (JSON Lines)**: One object per line (ideal for logs)
@@ -61,13 +68,13 @@ pip install windows-curses  # Windows only
 
 ```bash
 # View a JSON file
-python json_viewer.py data.json
+python json-viewer.py data.json
 
 # View a JSONL file (one object per line)
-python json_viewer.py logs.jsonl
+python json-viewer.py logs.jsonl
 
 # View large files (millions of records) - works instantly!
-python json_viewer.py huge_dataset.jsonl
+python json-viewer.py huge_dataset.jsonl
 ```
 
 ## ⌨️ Keyboard Shortcuts
@@ -78,6 +85,7 @@ python json_viewer.py huge_dataset.jsonl
 | `→` `l`         | Expand current node                     |
 | `←`             | Collapse current node                   |
 | `Enter`         | View full value (leaf nodes)            |
+| `1` `2` `3` `Tab` | Switch value-view mode (`raw`/`base64`/`certificate`) inside full-value viewer |
 | `a`             | Expand current object                   |
 | `z`             | Collapse current object                 |
 | `A`             | Expand **all** objects                  |
@@ -134,7 +142,7 @@ This viewer was built with security as a first-class concern. Unlike naive JSON 
 
 ## 🔧 Configuration (Source Code)
 
-Security limits can be adjusted in `json_viewer.py`:
+Security limits can be adjusted in `json-viewer.py`:
 
 ```python
 MAX_JSON_DEPTH = 100                # Max nesting depth
